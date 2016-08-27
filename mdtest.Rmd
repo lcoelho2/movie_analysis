@@ -1,0 +1,135 @@
+---
+title: "Exercício Litteris"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE) #enable caching globally
+library(readr)
+library(plyr); #melhor rodar plyr antes de dplyr, por causa de conflitos
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(sqldf)
+```
+
+## Questões
+1. Quais gêneros tem na média histórica os maiores ratings
+2. Quais gêneros obtiveram a maior queda e crescimento na média com o passar do tempo 
+3. Existe alguma relação entre users? (e.g. users dão notas mais altas para um gênero dão notas mais baixas para outro gênero; dica: você pode tentar segmentar users)
+
+## Packages e Libraries
+Os dados utilizados para responder as questões foram retirados do link abaixo
+
+[http://grouplens.org/datasets/movielens/20m/](http://grouplens.org/datasets/movielens/20m/)
+
+```{r}
+ratings <- read_csv("./data/ml-20m/ratings.csv")
+movies <- read_csv("./data/ml-20m/movies.csv")
+```
+
+## Processando os dados
+Separando os filmes classificados com mais de um gênero.
+```{r}
+moviess <- movies %>% mutate(genres = strsplit(genres, "\u007C",fixed=TRUE)) %>% unnest(genres)
+```
+
+Alterando o formato da data
+```{r}
+ratings$timestamp <- as.POSIXct(as.numeric(ratings$timestamp),origin="1970-01-01",tz="GMT")
+ratings$timestamp <- format(ratings$timestamp, "%Y")
+```
+
+Juntando o aquivo com os ratings e o arquivo com os gêneros
+```{r}
+total <- ratings %>% inner_join(moviess,by="movieId")
+```
+
+#### Outliers: 
+Foi excluído o ano de 1995, pois existem apenas 4 filmes nesse ano.  
+```{r, results='asis',echo=FALSE}
+y1995 <- total %>% filter(timestamp == 1995) 
+knitr::kable(head(movies %>% filter(movieId %in% y1995$movieId)))
+```
+
+#### Retirando outliers
+```{r}
+tout <- total %>% filter(timestamp != 1995)  
+```
+
+## Questão 1
+Agrupando a média dos ratings por gênero e tempo
+```{r}
+tagg <- tout %>% group_by(genres,timestamp) %>% summarise(rating = mean(rating))
+```
+
+```{r,echo=FALSE}
+ggplot(tagg, aes(x = timestamp, y = rating, color=genres)) + geom_point() + facet_wrap(~genres) + scale_x_discrete(breaks=seq(1995, 2016, 5)) + theme(legend.position="none")+theme(axis.text.x=element_text(angle = -90, hjust = 0))
+```
+
+```{r,echo=FALSE , message=FALSE}
+#salva a figura na pasta do reveal.js para posterior apresentacao
+#ggsave(filename="./reveal.js-master/fig/pagt.png") 
+```
+
+Analisando as maiores médias. Abaixo vemos os gêneros com maiores ratings
+```{r,results='asis',echo=FALSE}
+m <- tagg %>% group_by(genres) %>% summarise(rating = mean(rating)) %>% arrange(desc(rating))
+knitr::kable(tagg %>% group_by(genres) %>% summarise(rating = mean(rating)) %>% arrange(desc(rating)) %>% top_n(n=3,wt=rating))
+```
+
+
+## Questão 2
+Para analisar os crescimentos e quedas na média dividi o data.frame em 2 períodos (análise visual de crescimento e queda). Mesmo acreditando que deve existir uma maneira melhor... 
+```{r}
+cresc <- tout %>% filter(timestamp %in% c(2005:2013) & genres != "(no genres listed)")
+queda <- tout %>% filter(timestamp %in% c(1999:2005) & genres != "(no genres listed)")
+```
+
+A partir dessa divisão pensei em duas maneiras para descobrir os gêneros com maiores quedas e os com maiores crescimentos.
+A primeira seria analisando o coeficiente angular da regressão linear.
+
+Abaixo temos os gêneros que tiveram os maiores crescimentos na média.
+```{r}
+crescLm <- ddply(cresc %>% select(genres,timestamp,rating), "genres", function(x) coef(lm(rating ~ timestamp,data = x))[2])
+names(crescLm)[2] <- "slope"
+```
+
+```{r echo= FALSE}
+knitr::kable(head(crescLm %>% arrange(desc(slope))))
+```
+
+Abaixo temos os gêneros que tiveram as maiores quedas na média.
+```{r}
+quedaLm <- ddply(queda %>% select(genres,timestamp,rating), "genres", function(x) coef(lm(rating ~ timestamp,data = x))[2])
+names(quedaLm)[2] <- "slope"
+```
+
+```{r echo= FALSE}
+knitr::kable(head(quedaLm %>% arrange(desc(slope))))
+```
+
+E a segunda seria calcular a diferença entre o maior e o menor rating nesses períodos, por gênero. Para isso usei o pacote `sqldf`. Não gerou o mesmo resultado, a ordem dos maiores não foi a mesma.
+
+```{r echo= FALSE}
+library(tcltk)
+```
+
+Crescimento na média.
+```{r}
+cresc <- sqldf("select genres, (max(rating) - min(rating)) diff from tagg where timestamp between 2005 and 2013 and genres != '(no genres listed)' group by genres order by diff desc")
+
+```
+```{r echo= FALSE}
+knitr::kable(head(cresc))
+```
+
+Queda na média.
+```{r}
+decr <- sqldf("select genres, (max(rating) - min(rating)) diff from tagg where timestamp between 1999 and 2005 and genres != '(no genres listed)' group by genres order by diff desc")
+```
+
+```{r echo= FALSE}
+knitr::kable(head(decr))
+```
+
