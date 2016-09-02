@@ -2,7 +2,7 @@
 title: "Exercício Litteris"
 author: Luis Antonio
 output: revealjs::revealjs_presentation
-css: mycss.css
+css: mycss.css #arquivo criado com alguns poucos ajustes
 ---
 
 # Introdução

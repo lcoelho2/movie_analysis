@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE, echo = FALSE}
-knitr::opts_chunk$set(echo = TRUE) #enable caching globally
+#knitr::opts_chunk$set(cache=TRUE) #enable caching globally
 library(readr)
 library(plyr); #melhor rodar plyr antes de dplyr, por causa de conflitos
 library(dplyr)
