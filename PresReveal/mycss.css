@@ -1,0 +1,4 @@
+
+p { text-align: left; }
+.reveal caption {text-align: left;}
+.reveal table, .reveal tbody { margin-left: 1%; margin-right: auto; }

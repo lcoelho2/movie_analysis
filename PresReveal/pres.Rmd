@@ -1,10 +1,14 @@
 ---
 title: "Exercício Litteris"
-output: html_document
+author: Luis Antonio
+output: revealjs::revealjs_presentation
+css: mycss.css
 ---
 
+# Introdução
+
 ```{r setup, include=FALSE, echo = FALSE}
-knitr::opts_chunk$set(echo = TRUE) #enable caching globally
+#knitr::opts_chunk$set(cache=TRUE) #enable caching globally
 library(readr)
 library(plyr); #melhor rodar plyr antes de dplyr, por causa de conflitos
 library(dplyr)
@@ -15,6 +19,7 @@ library(reshape)
 #install.packages("corrplot")
 library(corrplot)
 library(pander)
+library(knitr)
 ```
 
 ## Questões
@@ -22,42 +27,56 @@ library(pander)
 2. Quais gêneros obtiveram a maior queda e crescimento na média com o passar do tempo 
 3. Existe alguma relação entre users? (e.g. users dão notas mais altas para um gênero dão notas mais baixas para outro gênero; dica: você pode tentar segmentar users)
 
-## Packages e Libraries
+## 
 Os dados utilizados para responder as questões estão no link abaixo. 
-
 [http://grouplens.org/datasets/movielens/20m/](http://grouplens.org/datasets/movielens/20m/)
 
 A partir dele foram retirados dois arquivos úteis, e foram criados dois data frames, `movies` e `ratings`. Abaixo vemos parte deles.
-```{r echo=FALSE,results='asis',message=FALSE }
-movies <- read_csv("./data/ml-20m/movies.csv")
-pandoc.table(head(movies), split.table = Inf,justify = c('left', 'left', 'left'),caption = "Movies Table")
+
+```{r echo=FALSE,message=FALSE }
+movies <- read_csv("../data/ml-20m/movies.csv")
+
+#pandoc.table(head(movies), split.table = Inf,justify = c('left', 'left', 'left'))
+kable(head(movies,n=3),format = "html",caption = "Head of the Movies Data Frame")
 ```
 
-```{r echo=FALSE,results='asis',message=FALSE }
-ratings <- read_csv("./data/ml-20m/ratings.csv")
-pandoc.table(head(ratings),split.table = Inf,justify = c('left', 'left', 'left','left'),caption = "Ratings Table")
+```{r echo=FALSE,message=FALSE }
+ratings <- read_csv("../data/ml-20m/ratings.csv")
+kable(head(ratings,n=3),format = "html",caption = "Head of the Ratings Data Frame")
 ```
 
-## Processando os dados
-Como alguns filmes possuem vários gêneros, separamos os diferentes gêneros em diferentes linhas.
-```{r}
-moviess <- movies %>% mutate(genres = strsplit(genres, "\u007C",fixed=TRUE)) %>% unnest(genres)
-```
+
+# Processamento dos data frames
 
 Como podemos ver pelo campo `Timestamp` a data está no formato `POSIXct`, por isso convertemos ela para o calendário Gregoriano. Além disso, extraímos somente o ano de cada data.
-
 ```{r}
-ratings$timestamp <- as.POSIXct(as.numeric(ratings$timestamp),origin="1970-01-01",tz="GMT")
+ratings$timestamp <- as.POSIXct(as.numeric(ratings$timestamp),
+                                origin="1970-01-01",tz="GMT")
 ratings$timestamp <- format(ratings$timestamp, "%Y")
 ```
 
-Para obtermos os gêneros e seus respectivos ratings criamos um único data frame fazendo inner join de `ratings` e `movies`, usando o campo `movieId`. 
-
-```{r}
-total <- ratings %>% inner_join(moviess,by="movieId")
+```{r echo=FALSE}
+kable(head(ratings,n=3),format = "html")
 ```
 
-#### Outliers: 
+##
+Como alguns filmes possuem vários gêneros, separamos os diferentes gêneros em diferentes linhas.
+
+```{r echo=FALSE,results='asis'}
+moviess <- movies %>% mutate(genres = strsplit(genres, "\u007C",fixed=TRUE)) %>% unnest(genres)
+kable(head(moviess,n=5),type = "html",caption = "Movies com gêneros separados")
+```
+
+##
+Para obtermos os gêneros e seus respectivos ratings criamos um único data frame fazendo inner join de `ratings` e `movies`, usando o campo `movieId`. 
+
+
+```{r echo=FALSE,results='asis'}
+total <- ratings %>% inner_join(moviess,by="movieId")
+kable(head(total,n=5),type = "html",caption = "Data frame completo")
+```
+
+## Outliers: 
 Foi excluído o ano de 1995, pois existem apenas 4 filmes nesse ano.  
 ```{r, results='asis',echo=FALSE}
 y1995 <- total %>% filter(timestamp == 1995) 
@@ -66,104 +85,112 @@ y1995 <- total %>% filter(timestamp == 1995)
 ```{r echo=FALSE, results='asis'}
 pandoc.table(head(movies %>% filter(movieId %in% y1995$movieId)), split.table = Inf,justify = c('left', 'left', 'left'))
 ```
-
-#### Retirando outliers
-```{r}
+```{r echo=FALSE}
 tout <- total %>% filter(timestamp != 1995)  
 ```
 
-## Questão 1
-Agrupando a média dos ratings por gênero e tempo
-```{r}
+# Questão 1 
+
+## 
+Agrupando a média dos ratings por gênero e tempo.
+```{r echo=FALSE}
 tagg <- tout %>% group_by(genres,timestamp) %>% summarise(rating = mean(rating))
 ```
 
-```{r,echo=FALSE}
-ggplot(tagg, aes(x = timestamp, y = rating, color=genres)) + geom_point() + facet_wrap(~genres) + scale_x_discrete(breaks=seq(1995, 2016, 5)) + theme(legend.position="none")+theme(axis.text.x=element_text(angle = -90, hjust = 0))
+```{r echo=FALSE}
+ggplot(tagg, aes(x = timestamp, y = rating, color=genres)) + geom_point() + facet_wrap(~genres) + scale_x_discrete(breaks=seq(1995, 2016, 5)) + theme(legend.position="none")+theme(axis.text.x=element_text(angle = -90,hjust = 0))
 ```
 
-
-Analisando as maiores médias, abaixo vemos os gêneros com maiores ratings
-```{r,results='asis',echo=FALSE}
-m <- tagg %>% group_by(genres) %>% summarise(rating = mean(rating)) %>% arrange(desc(rating))
-```
+##
+Analisando as maiores médias, abaixo vemos os gêneros com maiores ratings.
 
 ```{r echo=FALSE,results='asis'}
 pandoc.table(tagg %>% group_by(genres) %>% summarise(rating = mean(rating)) %>% arrange(desc(rating)) %>% top_n(n=6,wt=rating),split.table = Inf,justify = c('left', 'left'))
 ```
 
-## Questão 2
+# Questão 2
+##
 Para analisar os crescimentos e quedas na média, o data frame foi dividido em 2 períodos (análise visual de crescimento e queda). Mesmo acreditando que deve existir uma maneira melhor... 
 ```{r}
 cresc <- tout %>% filter(timestamp %in% c(2005:2013) & genres != "(no genres listed)")
 queda <- tout %>% filter(timestamp %in% c(1999:2005) & genres != "(no genres listed)")
 ```
 
-A partir dessa divisão pensei em duas maneiras para descobrir os gêneros com maiores quedas e os com maiores crescimentos.
-A primeira seria analisando o coeficiente angular da regressão linear.
+A partir dessa divisão pensei em duas maneiras para descobrir os gêneros com maiores quedas e os com maiores crescimentos. A primeira seria analisando o coeficiente angular da regressão linear.
 
-Abaixo temos os gêneros que tiveram os maiores crescimentos na média.
-```{r}
-crescLm <- ddply(cresc %>% select(genres,timestamp,rating), "genres", function(x) coef(lm(rating ~ timestamp,data = x))[2])
-names(crescLm)[2] <- "slope"
-```
-
-```{r echo= FALSE,results='asis'}
-pandoc.table(head(crescLm %>% arrange(desc(slope))),split.table = Inf,justify = c('left', 'left'))
-```
-
-Abaixo temos os gêneros que tiveram as maiores quedas na média.
-```{r}
+##
+Abaixo temos os gêneros que tiveram os maiores crescimentos e quedas na média.
+```{r echo= FALSE}
 quedaLm <- ddply(queda %>% select(genres,timestamp,rating), "genres", function(x) coef(lm(rating ~ timestamp,data = x))[2])
 names(quedaLm)[2] <- "slope"
 ```
 
-```{r echo= FALSE,results='asis'}
-pandoc.table(head(quedaLm %>% arrange(desc(slope))),split.table = Inf,justify = c('left', 'left'))
+```{r echo= FALSE}
+crescLm <- ddply(cresc %>% select(genres,timestamp,rating), "genres", function(x) coef(lm(rating ~ timestamp,data = x))[2])
+names(crescLm)[2] <- "slope"
 ```
 
-E a segunda seria calcular a diferença entre o maior e o menor rating nesses períodos, por gênero. Para isso usei o pacote `sqldf`. Não gerou o mesmo resultado, a ordem não foi a mesma.
+```{r , results='asis',echo= FALSE}
+library(knitr)
+t1 = kable(head(crescLm %>% arrange(desc(slope))), format='html',caption = "Crescimento", table.attr='cellpadding="3"', output = FALSE)
+t2 = kable(head(quedaLm %>% arrange(desc(slope))), format='html', caption = "Queda", table.attr='cellpadding="3"', output = FALSE)
+cat(c('<table><tr valign="top"><td>', t1, '</td>', '<td>', t2, '</td></tr></table>'),
+    sep = '')
+```
+
+##
+E, a segunda, seria calcular a diferença entre o maior e o menor rating nesses períodos, por gênero. Para isso usei o pacote `sqldf`. Não gerou o mesmo resultado, a ordem não foi a mesma.
 
 ```{r echo= FALSE}
 library(tcltk)
 ```
 
-Crescimento na média.
-```{r}
+```{r echo= FALSE}
 cresc <- sqldf("select genres, (max(rating) - min(rating)) diff from tagg where timestamp between 2005 and 2013 and genres != '(no genres listed)' group by genres order by diff desc")
 ```
 
-```{r echo= FALSE,results='asis'}
-pandoc.table(head(cresc),split.table = Inf,justify = c('left', 'left'))
-```
 
-Queda na média.
-```{r}
+```{r echo= FALSE}
 decr <- sqldf("select genres, (max(rating) - min(rating)) diff from tagg where timestamp between 1999 and 2005 and genres != '(no genres listed)' group by genres order by diff desc")
 ```
 
-```{r echo= FALSE,results='asis'}
-pandoc.table(head(decr),split.table = Inf,justify = c('left', 'left'))
+Crescimento na média e queda na média.
+
+```{r , results='asis',echo= FALSE}
+library(knitr)
+t1 = kable(head(cresc), format='html',caption = "Crescimento", table.attr='cellpadding="3"', output = FALSE)
+t2 = kable(head(decr), format='html', caption = "Queda", table.attr='cellpadding="3"', output = FALSE)
+cat(c('<table><tr valign="top"><td>', t1, '</td>', '<td>', t2, '</td></tr></table>'),
+    sep = '')
 ```
 
-## Questão 3
-Para realizarmos o gráfico com a correlação entre os gêneros vamos primeiro verificar o número de vezes que um usuário forneceu determinado rate para um determinado gênero e a média, agrupando por `(user,genre)`.
-```{r}
+
+# Questão 3
+##
+Para realizarmos o gráfico com a correlação entre os gêneros vamos, primeiro, verificar o número de vezes que um usuário forneceu determinado rate para um determinado gênero e a média, agrupando por `(user,genre)`.
+```{r echo= FALSE}
 usrRatMax <- tout %>% filter(genres != "(no genres listed)") %>% group_by(userId,genres,rating) %>% summarise(count = n())
 usrRatxCt <- usrRatMax %>% mutate(cxr = rating * count) %>% group_by(userId,genres) %>% summarise(avg = mean(cxr))
 ```
 
 Agora, vamos padronizar a coluna de rating, por usuário (alguns usuários que veem mais filmes que outros).
-```{r}
+```{r echo= FALSE}
 usrgensc <- ddply(usrRatxCt, "userId", function(x){ x$scavg = scale(x$avg)})
 usrgensc <- mutate(usrgensc, genres = usrRatxCt$genres)
 colnames(usrgensc) <- c("userId", "avgsc","genres")
 ```
 
-Passamos agora os gênero para colunas para fazermos a correlação.
-```{r}
+Passamos agora os gênero para colunas para fazermos a correlação. Temos um exemplo abaixo, com as 6 primeiras colunas.
+```{r echo= FALSE}
 usrgenres <- cast(usrgensc, userId ~ genres ,value= "avgsc")
 ```
+
+
+```{r echo= FALSE}
+kable(head(usrgenres[,1:6],n=3),type = "html",caption = "Gêneros nas colunas")
+```
+
+##
 
 ```{r echo=FALSE}
 # função para adicionar a significância e P values ao gráfico da correlação
@@ -186,7 +213,7 @@ cor.mtest <- function(mat, conf.level = 0.95){
 ```
 
 Abaixo vemos o gráfico da correlação entre os gêneros.
-```{r}
+```{r echo= FALSE}
 genrcor <- cor(usrgenres[,2:20],use ="complete.obs")
 dimnames(genrcor) <- list(colnames(usrgenres[2:20]),colnames(usrgenres[2:20]))
 res1 <- cor.mtest(usrgenres[,2:20],0.95)
@@ -195,6 +222,7 @@ p <- cor.mtest(usrgenres[,2:20])
 corrplot(m, p.mat = res1[[1]], order="FPC", insig = "pch",sig.level=0.001,tl.cex=0.7)
 ```
 
+##
 O gráfico foi ordenado pelo primeiro componente principal e foi adicionado um `X` para designar valores de significância inferiores a `1%`.
 
 Vemos que, pessoas que gostam de gêneros como Aventura e/ou Ação e/ou Sci-Fi, não gostam de Dramas e/ou Filmes-Noir. E, quem gosta de Filmes-Noir e/ou Drama, não gosta de Aventura e Ação. 
